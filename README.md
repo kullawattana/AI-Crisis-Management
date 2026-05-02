@@ -37,6 +37,94 @@ Victim phone call
   -> Azure Monitor + Application Insights + Key Vault
 ```
 
+## System Visualization Flow
+
+The current deployed MVP uses Twilio for PSTN voice intake, Azure Container Apps for the FastAPI voice gateway, OpenAI Realtime for low-latency speech-to-speech, and Azure-ready storage/event services for crisis operations.
+
+```mermaid
+flowchart LR
+    caller[Caller / Victim phone] -->|PSTN call| twilio[Twilio Voice Number]
+    twilio -->|POST /incoming-call| gateway[Azure Container Apps<br/>FastAPI call gateway]
+    gateway -->|TwiML Connect Stream| twilio
+    twilio <-->|WebSocket /media-stream<br/>G.711 u-law audio| gateway
+    gateway <-->|Realtime WebSocket<br/>audio + tool calls| realtime[OpenAI Realtime<br/>GPT voice model]
+    realtime -->|record_victim_info tool| tools[Backend tools.py]
+    tools --> case_store[Case Store]
+    case_store -->|primary Azure path| cosmos[(Azure Cosmos DB<br/>cases, resources, audit logs)]
+    case_store -. fallback .-> memory[(Memory store<br/>development fallback)]
+    tools --> events[Event Publisher]
+    events -->|primary Azure path| service_bus[Azure Service Bus<br/>case.created, triage.completed]
+    events -. fallback .-> logs[Container logs]
+    dashboard[React Dashboard] -->|REST API| gateway
+    gateway --> dashboard_store[Dashboard Store]
+    dashboard_store --> cosmos
+```
+
+### Runtime Call Flow
+
+```mermaid
+sequenceDiagram
+    participant Caller
+    participant Twilio
+    participant API as Azure Container Apps / FastAPI
+    participant GPT as OpenAI Realtime
+    participant DB as Cosmos DB / Memory fallback
+    participant Bus as Service Bus / Log fallback
+    participant UI as Dashboard
+
+    Caller->>Twilio: Calls crisis number
+    Twilio->>API: POST /incoming-call
+    API-->>Twilio: TwiML with wss://.../media-stream
+    Twilio->>API: Opens media WebSocket
+    API->>GPT: Opens Realtime WebSocket
+    API->>GPT: session.update + response.create kickoff
+    Twilio-->>API: Caller audio chunks
+    API-->>GPT: input_audio_buffer.append
+    GPT-->>API: response.audio.delta
+    API-->>Twilio: media audio payload
+    Twilio-->>Caller: AI voice response
+    GPT->>API: function call when case is ready
+    API->>DB: Save case
+    API->>Bus: Publish case event
+    UI->>API: GET /api/cases, /api/resources
+    API-->>UI: Case/resource data
+```
+
+### Deployed Component Map
+
+```mermaid
+flowchart TB
+    subgraph Telephony
+        twilio_number[Twilio Number<br/>+1 229 303 5264]
+        twilio_media[Twilio Media Streams]
+    end
+
+    subgraph Azure
+        aca[Container App<br/>crisis-bot]
+        acr[Container Registry<br/>crisisbot...]
+        cosmosdb[(Cosmos DB)]
+        sb[Service Bus]
+    end
+
+    subgraph AI
+        openai[OpenAI Realtime API<br/>gpt-4o-realtime-preview]
+        azure_openai[Azure OpenAI<br/>structured triage optional]
+    end
+
+    subgraph Operator
+        dashboard[React dashboard<br/>local or static web app]
+    end
+
+    twilio_number --> twilio_media
+    twilio_media <--> aca
+    aca <--> openai
+    aca --> cosmosdb
+    aca --> sb
+    aca -. optional .-> azure_openai
+    dashboard --> aca
+    acr --> aca
+```
+
 ### Architecture Principles
 
 - Use Azure as the operational backbone for database, event queues, dashboard hosting, monitoring, maps, secrets, and AI services.
@@ -188,20 +276,22 @@ The dashboard starts on `http://localhost:5173`.
 
 ## Environment Variables
 
-Current prototype variables:
+Core runtime variables:
 
 | Variable | Description | Example |
 | --- | --- | --- |
-| `OPENAI_API_KEY` | OpenAI API key for GPT Realtime voice | `sk-...` |
-| `OPENAI_REALTIME_MODEL` | Realtime voice model | `gpt-realtime` |
+| `OPENAI_API_KEY` | OpenAI API key with Realtime model access | `sk-...` |
+| `OPENAI_REALTIME_MODEL` | Realtime voice model | `gpt-4o-realtime-preview` |
 | `OPENAI_REALTIME_VOICE` | Realtime voice name | `alloy` |
-| `GOOGLE_PROJECT` | GCP project ID | `my-project` |
-| `GOOGLE_APPLICATION_CREDENTIALS` | Service account JSON path | `./credentials.json` |
 | `TWILIO_ACCOUNT_SID` | Twilio account ID | `AC...` |
 | `TWILIO_AUTH_TOKEN` | Twilio auth token | `your_token` |
-| `TWILIO_PHONE_NUMBER` | Crisis hotline number | `+66xxxxxxxxx` |
+| `TWILIO_PHONE_NUMBER` | Crisis hotline number owned by Twilio | `+12293035264` |
+| `CASE_STORE_PROVIDER` | Case store provider | `cosmos` |
+| `EVENT_PUBLISHER` | Event publisher provider | `service_bus` |
+| `AI_TRIAGE_PROVIDER` | Structured triage provider | `azure_openai` |
+| `VOICE_AI_PROVIDER` | Voice AI provider | `openai` |
 
-Planned Azure variables:
+Azure variables:
 
 | Variable | Description |
 | --- | --- |
@@ -216,6 +306,12 @@ Planned Azure variables:
 | `AZURE_MAPS_KEY` | Azure Maps key |
 | `APPLICATIONINSIGHTS_CONNECTION_STRING` | Application Insights telemetry |
 | `KEY_VAULT_URL` | Azure Key Vault URL |
+
+Dashboard variable:
+
+| Variable | Description | Example |
+| --- | --- | --- |
+| `VITE_API_BASE_URL` | Backend API base URL for the React dashboard | `https://crisis-bot.livelyforest-b853572a.southeastasia.azurecontainerapps.io` |
 
 ## Migration Roadmap
 
