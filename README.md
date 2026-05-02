@@ -1,370 +1,286 @@
 # AI Crisis Management System
 
-> An AI-powered emergency response platform that ensures no victim gets a busy signal during crisis situations, while intelligently prioritizing response based on severity.
+> Azure-first crisis voice operations platform for Thailand that accepts emergency calls, performs AI-assisted triage, stores auditable case records, and helps operators coordinate response.
 
-## 🎯 Overview
+## Overview
 
-The Crisis Bot is an intelligent call center solution designed for disaster response scenarios (floods, fires, earthquakes). It addresses critical limitations of traditional call centers by using AI to handle unlimited concurrent calls, intelligently triage cases, and provide immediate assistance while human operators focus on decision-making and resource deployment.
+The current prototype is a voice-based crisis management system for floods, fires, earthquakes, medical emergencies, and public-safety incidents. The improved target solution is **Azure Crisis VoiceOps Thailand**: an Azure-centered architecture that keeps voice calling as the primary intake channel while adding cloud-native case workflow, monitoring, security, maps, and Responsible AI controls.
 
-### The Problem
+The recommended migration path is incremental. Keep Twilio for voice intake during the MVP if it is already stable, then move the backend, AI triage, database, dashboard, event workflow, monitoring, and secrets management to Azure.
 
-During crises, traditional call centers face critical challenges:
-- **Limited capacity**: Victims get busy signals when operators are overwhelmed
-- **No prioritization**: Critical cases wait behind non-urgent ones
-- **Bottlenecks**: Response depends on staff availability
-- **Data gaps**: Inconsistent information collection slows rescue efforts
-- **Reactivity**: No automatic follow-up when victim status changes
+## Why Voice Matters In Thailand
 
-### The Solution
+Thailand has several emergency and public-service hotlines, including 191, 1669, 199, 1155, 1784, and 1555. Voice calling remains important because it works for feature phones and smartphones, supports citizens without data access, helps elderly and vulnerable communities, and allows callers to describe rapidly changing danger in real time.
 
-An AI-assisted call center that:
-- ✅ **Eliminates busy signals** - AI handles unlimited concurrent inbound calls
-- ✅ **Prioritizes by severity** - Triage system routes critical cases first
-- ✅ **Augments humans** - AI collects data, humans make decisions
-- ✅ **Proactively monitors** - Automated pulse checks track status changes
-- ✅ **Multilingual support** - AI communicates in victim's preferred language 24/7
+Voice calling is especially useful for:
 
-## 🏗️ Architecture
+- Emergency intake and smart routing
+- Medical dispatch and ambulance triage
+- Flood rescue and trapped-person reporting
+- Tourist and migrant-worker multilingual support
+- Welfare checks after a crisis report
+- Mass outbound warnings and post-alert escalation
+- Coordination between rescue teams, hospitals, local authorities, and command centers
 
-### System Components
+## Target Azure Architecture
 
-```
-Phone (Thailand)
-     ↓ ~20ms
-Twilio Edge (Singapore)
-     ↓ ~5ms
-FastAPI Backend (GCP asia-southeast1)
-     ↓ ~5ms
-Gemini Live API (Text + Audio)
-     ↓
-Firestore Database
-     ↓
-React Dashboard (Crisis Management)
-
-Total Round-Trip: ~60ms
+```text
+Victim phone call
+  -> Azure Communication Services or Twilio
+  -> Azure Container Apps: FastAPI Call Gateway
+  -> Azure AI Speech + Azure OpenAI / Azure OpenAI Realtime API
+  -> Azure Service Bus + Event Grid
+  -> Azure Functions: triage, pulse checks, notifications, escalation
+  -> Azure Cosmos DB for NoSQL
+  -> React dashboard on Azure Static Web Apps
+  -> Azure Maps + Azure SignalR Service
+  -> Azure Monitor + Application Insights + Key Vault
 ```
 
-### Technology Stack
+### Architecture Principles
 
-**Backend:**
-- **FastAPI** - High-performance Python web framework
-- **Twilio** - Voice communication and media streaming
-- **Google Gemini Live API** - Real-time conversation AI with native audio
-- **Firestore** - Cloud database for victim records and case tracking
-- **WebSockets** - Real-time bidirectional communication
+- Use Azure as the operational backbone for database, event queues, dashboard hosting, monitoring, maps, secrets, and AI services.
+- Keep voice provider flexible. Azure Communication Services is the preferred Azure-native option, while Twilio can remain during the MVP if number support or streaming is easier.
+- Separate real-time call handling from background workflows using Service Bus, Event Grid, and Functions.
+- Keep humans in the loop for high-risk or uncertain triage.
+- Store AI decisions, extracted facts, human overrides, and triage changes in audit logs.
 
-**Frontend:**
-- **React 19** - UI framework
-- **TypeScript** - Type-safe development
-- **Vite** - Modern build tool
-- **Tailwind CSS** - Utility-first styling
-- **Firebase** - Authentication and real-time data
-- **Lucide React** - Icon library
+## Azure Service Mapping
 
-**Deployment:**
-- **Docker** - Containerization
-- **Google Cloud Run** - Serverless deployment
+| Module | Current / baseline | Azure recommendation | Purpose |
+| --- | --- | --- | --- |
+| Voice hotline | Twilio voice/media streams | Azure Communication Services Call Automation, or Twilio for MVP | Inbound calls, callback, IVR, recordings, SMS follow-up |
+| Speech | GPT Realtime audio or provider transcription | Azure AI Speech STT/TTS | Thai/English transcription, auditable speech pipeline, multilingual voice prompts |
+| AI conversation | OpenAI GPT Realtime | Azure OpenAI Realtime API or Azure AI Speech + Azure OpenAI | Low-latency conversation and controllable triage workflow |
+| Triage | LLM + app logic | Azure OpenAI + deterministic safety rules | Structured extraction, severity reasoning, human review |
+| Backend | FastAPI/Docker | Azure Container Apps | Serverless container hosting and independent scaling |
+| Database | Firestore | Azure Cosmos DB for NoSQL | JSON case records and low-latency dashboard reads |
+| Events | Direct DB writes | Azure Service Bus + Event Grid | Reliable crisis workflow processing |
+| Pulse checks | App scheduler | Azure Functions / Durable Functions | Scheduled callbacks, retries, escalation |
+| Dashboard | React/Firebase | Azure Static Web Apps + Azure SignalR Service | Live operator dashboard |
+| Maps | Basic/manual location | Azure Maps | Geocoding, incident pins, routing, nearby hospitals/shelters |
+| Knowledge base | Hardcoded survival guide | Azure AI Search + RAG | Grounded safety guidance from official SOPs |
+| Monitoring | Basic logs | Azure Monitor + Application Insights | Reliability, latency, errors, call and triage observability |
+| Secrets | Environment variables | Azure Key Vault + Managed Identity | Safer credential handling |
+| Edge security | None/basic | Azure API Management + Front Door/WAF | Rate limiting, authentication, edge protection |
 
-## 📊 Triage System
+## MVP Demo Scope
+
+Project name: **Azure Crisis VoiceOps Thailand**
+
+Core demo flow:
+
+1. A victim calls the crisis hotline.
+2. The AI detects Thai speech and transcribes the call.
+3. The system extracts emergency facts: incident type, location, injuries, people affected, immediate needs, callback number, and urgency.
+4. Azure OpenAI assigns a triage recommendation with an explanation and confidence score.
+5. Safety rules mark RED and uncertain cases for human review.
+6. The case is saved to Cosmos DB and published as a crisis event.
+7. The dashboard shows the case, SLA timer, audit trail, and Azure Maps incident pin.
+8. Azure Functions schedule pulse checks and escalation workflows.
+9. The AI provides immediate safety guidance while the operator coordinates rescue.
+
+Example Thai flood scenario:
+
+```text
+Caller: น้ำท่วมอยู่ที่หาดใหญ่ มีคนแก่หายใจลำบาก ติดอยู่ชั้นสอง
+Detected: flood + medical risk + trapped elderly person
+Triage: RED
+Action: alert operator, start SLA timer, schedule pulse check, show location on map
+```
+
+## Triage System
 
 Cases are prioritized into three levels:
 
 | Priority | SLA | Criteria | Examples |
-|----------|-----|----------|----------|
-| **🔴 RED** | ≤ 10 min | Life threatening, urgent medical support needed | Trapped under debris, severe bleeding, difficulty breathing, heart attack |
-| **🟡 YELLOW** | ≤ 30 min | Injured or at risk, not immediately critical | Broken bone, minor bleeding, malnutrition, stable but sick |
-| **🟢 GREEN** | When available | Safe, needs information or non-urgent help | Property damage, needs shelter info, status updates |
+| --- | --- | --- | --- |
+| RED | <= 10 min | Life threatening or urgent medical support needed | Trapped person, severe bleeding, breathing difficulty, heart attack |
+| YELLOW | <= 30 min | Injured or at risk, but not immediately critical | Broken bone, minor bleeding, stable but sick |
+| GREEN | When available | Safe, needs information or non-urgent help | Property damage, shelter information, status update |
 
-**Automatic pulse checks**: Every 1 hour since last human contact (call or callback)
+Automatic pulse checks should run every 1 hour after the last human contact unless a case-specific plan overrides it.
 
-## 📁 Project Structure
+## Structured Triage Output
 
+```json
+{
+  "case_id": "TH-FLOOD-000123",
+  "language": "th",
+  "incident_type": "flood",
+  "triage_level": "RED",
+  "confidence": 0.87,
+  "location_text": "Hat Yai, near hospital",
+  "injuries": "elderly person breathing difficulty",
+  "people_affected": 3,
+  "immediate_needs": ["rescue", "medical"],
+  "ai_summary": "Caller is trapped in floodwater with an elderly person having breathing difficulty.",
+  "human_review_required": true,
+  "triage_reason": "Trapped caller plus breathing difficulty indicates immediate life risk."
+}
 ```
+
+## Cosmos DB Data Model
+
+Recommended collections:
+
+- `cases`: primary case record, status, SLA, triage level, assigned operator
+- `victims`: caller/victim details and contact preferences
+- `calls`: call metadata, provider IDs, timestamps, recordings, callback attempts
+- `transcripts`: STT output, language, confidence, redacted text
+- `triage_events`: AI recommendations, safety-rule outputs, human overrides
+- `pulse_checks`: scheduled checks, outcomes, retries, escalation status
+- `resources`: rescue teams, shelters, hospitals, vehicles, supplies
+- `audit_logs`: AI decisions, human actions, access events, data changes
+
+Use `case_id` as the main operational identifier and partition high-volume collections by `case_id`, `district`, or `status` depending on query patterns.
+
+## Project Structure
+
+```text
 AI-Crisis-Management/
-├── crisis-bot/                      # Backend application
-│   ├── main.py                      # FastAPI entry point
-│   ├── config.py                    # Configuration and system prompt
-│   ├── routes.py                    # Twilio webhooks and WebSocket handlers
-│   ├── tools.py                     # AI tools (survival guide, victim recording)
-│   ├── requirements.txt             # Python dependencies
-│   ├── Dockerfile                   # Container configuration
-│   ├── CRISIS_BOT_SPEC.md          # Business requirements and use cases
-│   ├── IMPLEMENTATION.md            # Technical implementation guide
-│   ├── CLAUDE.md                    # AI assistant instructions
-│   │
-│   ├── services/                    # Core service modules
-│   │   ├── gemini_service.py        # Google Gemini Live API integration
-│   │   ├── twilio_service.py        # Twilio audio bridging
-│   │   └── firestore_service.py     # Database operations
-│   │
-│   ├── dashboard/                   # React frontend application
-│   │   ├── src/
-│   │   │   ├── main.tsx             # Application entry point
-│   │   │   ├── App.tsx              # Main app component
-│   │   │   ├── firebase.ts          # Firebase configuration
-│   │   │   ├── PulseCheck.tsx       # Scheduled check-in component
-│   │   │   ├── Victims.tsx          # Victim management dashboard
-│   │   │   ├── Resources.tsx        # Resource allocation interface
-│   │   │   └── assets/              # Static assets
-│   │   ├── public/                  # Public static files
-│   │   ├── package.json             # Frontend dependencies
-│   │   ├── vite.config.ts           # Vite build configuration
-│   │   ├── tsconfig.json            # TypeScript configuration
-│   │   └── tailwind.config.js       # Tailwind CSS configuration
-│   │
-│   └── scripts/                     # Utility scripts
-│       ├── load_test.py             # Load testing script
-│       └── fix_victim_data.py       # Data cleanup utilities
+├── README.md
+├── docs/
+│   └── AZURE_SOLUTION.md
+└── crisis-bot/
+    ├── main.py
+    ├── config.py
+    ├── routes.py
+    ├── tools.py
+    ├── requirements.txt
+    ├── Dockerfile
+    ├── CRISIS_BOT_SPEC.md
+    ├── IMPLEMENTATION.md
+    ├── services/
+    │   ├── openai_realtime_service.py
+    │   ├── twilio_service.py
+    │   └── firestore_service.py
+    ├── dashboard/
+    │   └── src/
+    └── scripts/
 ```
 
-## 🚀 Quick Start
+## Current Prototype Quick Start
 
-### Prerequisites
+The current code runs Twilio Media Streams with OpenAI GPT Realtime for live voice, plus Azure-ready service abstractions for storage, events, and dashboard APIs.
 
-- Python 3.10+
-- Node.js 18+
-- Git
-- Docker (optional, for containerized deployment)
-
-### Backend Setup
-
-1. **Clone the repository:**
-   ```bash
-   git clone https://github.com/yourusername/AI-Crisis-Management.git
-   cd AI-Crisis-Management/crisis-bot
-   ```
-
-2. **Create a Python virtual environment:**
-   ```bash
-   python -m venv venv
-   source venv/bin/activate  # On Windows: venv\Scripts\activate
-   ```
-
-3. **Install dependencies:**
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-4. **Set up environment variables:**
-   ```bash
-   cp .env.example .env
-   ```
-   Then edit `.env` with your credentials:
-   ```env
-   # Google Gemini
-   GEMINI_API_KEY=your_gemini_api_key
-   
-   # Twilio
-   TWILIO_ACCOUNT_SID=your_twilio_account_sid
-   TWILIO_AUTH_TOKEN=your_twilio_auth_token
-   TWILIO_PHONE_NUMBER=+66xxxxxxxxx
-   
-   # Google Cloud / Firestore
-   GOOGLE_PROJECT=your_gcp_project_id
-   GOOGLE_APPLICATION_CREDENTIALS=path/to/service_account.json
-   
-   # Optional: Use Vertex AI instead of Gemini API
-   USE_VERTEX=false
-   ```
-
-5. **Run the backend:**
-   ```bash
-   python main.py
-   ```
-   The API will start on `http://localhost:9999`
-
-### Frontend Setup
-
-1. **Navigate to dashboard:**
-   ```bash
-   cd dashboard
-   ```
-
-2. **Install dependencies:**
-   ```bash
-   npm install
-   ```
-
-3. **Start development server:**
-   ```bash
-   npm run dev
-   ```
-   The dashboard will be available at `http://localhost:5173`
-
-4. **Build for production:**
-   ```bash
-   npm run build
-   ```
-
-## 📡 Call Flow
-
-### Inbound Call Handling
-
-```
-1. Victim calls crisis hotline
-   ↓
-2. Twilio receives call
-   ↓
-3. FastAPI webhook processes incoming call
-   ↓
-4. Establish WebSocket connection to Twilio media stream
-   ↓
-5. Bridge Twilio ↔ Gemini Live API
-   ↓
-6. AI collects emergency information:
-   - Situation type (flood, fire, earthquake, etc.)
-   - Number of people affected
-   - Location details
-   - Injuries and severity
-   - Immediate needs
-   - Contact phone number
-   ↓
-7. AI assesses severity → Assigns triage level (RED/YELLOW/GREEN)
-   ↓
-8. AI provides survival guidance
-   ↓
-9. Victim information saved to Firestore
-   ↓
-10. Dashboard alerts human operators
-    ↓
-11. Operators callback victim within SLA
-```
-
-## 🔧 API Endpoints
-
-### Twilio Webhooks
-
-- **POST `/incoming-call`** - Handles incoming phone calls
-- **WebSocket `/media-stream`** - Real-time audio streaming between Twilio and AI
-
-### Dashboard API (Firebase)
-
-- **Real-time listeners** on Firestore collections:
-  - `victims` - Active victim records
-  - `cases` - Case details with triage level
-  - `pulse_checks` - Scheduled follow-ups
-
-## 🧠 AI System Prompt
-
-The AI assistant is configured to:
-
-1. **Identify language** - Starts in English to detect caller's preferred language
-2. **Collect critical information** - Structured data for emergency response
-3. **Assess severity** - Assigns triage priority (RED/YELLOW/GREEN)
-4. **Record victim data** - Calls `record_victim_info` function to save case
-5. **Provide guidance** - Uses `get_survival_guide` function for immediate assistance
-6. **Confirm information** - Ensures accuracy and reassures caller
-7. **Support multiple languages** - Responds in caller's language
-
-## 📊 Dashboard Features
-
-### Victims Dashboard
-- View all reported cases with real-time status
-- Filter by triage priority level
-- Search by victim name or location
-- Victim location map visualization
-
-### Pulse Check Management
-- Schedule automatic follow-up calls
-- View pulse check history
-- Manual callback interface
-- Status update tracking
-
-### Resources Interface
-- Allocate emergency resources to cases
-- Track response team assignments
-- Monitor resource availability
-
-## 🐳 Docker Deployment
-
-Build and run the application in a container:
+### Backend
 
 ```bash
-# Build Docker image
-docker build -t crisis-bot:latest .
-
-# Run container
-docker run -p 9999:9999 \
-  -e GEMINI_API_KEY=$GEMINI_API_KEY \
-  -e TWILIO_ACCOUNT_SID=$TWILIO_ACCOUNT_SID \
-  -e TWILIO_AUTH_TOKEN=$TWILIO_AUTH_TOKEN \
-  -e GOOGLE_PROJECT=$GOOGLE_PROJECT \
-  crisis-bot:latest
+cd crisis-bot
+python -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+python main.py
 ```
 
-## ⚙️ Configuration
+The API starts on `http://localhost:9999`.
 
-Key configuration options in [config.py](crisis-bot/config.py):
+### Dashboard
 
-- **GEMINI_MODEL** - AI model selection (API vs. Vertex AI)
-- **SYSTEM_PROMPT** - AI assistant behavior and instructions
-- **GOOGLE_LOCATION** - Cloud region (asia-southeast1 for low latency)
-- **USE_VERTEX** - Toggle between Gemini API and Vertex AI
+```bash
+cd crisis-bot/dashboard
+npm install
+npm run dev
+```
 
-## 📈 Performance Metrics
+The dashboard starts on `http://localhost:5173`.
 
-- **Call acceptance**: Unlimited concurrent calls (no busy signals)
-- **Response latency**: ~60ms round-trip (phone → Gemini → phone)
-- **Triage accuracy**: Based on structured information collection
-- **Human callback SLA**: RED ≤ 10 min, YELLOW ≤ 30 min
+## Environment Variables
 
-## 🔐 Security Considerations
-
-- **API Keys**: Store in environment variables, never in code
-- **Firestore Rules**: Configure authentication in `firestore.rules`
-- **Rate Limiting**: Implement call rate limits to prevent abuse
-- **Data Privacy**: Comply with local data protection regulations
-
-## 📝 Environment Variables
+Current prototype variables:
 
 | Variable | Description | Example |
-|----------|-------------|---------|
-| `GEMINI_API_KEY` | Google Gemini API key | `AIzaSy...` |
-| `GOOGLE_PROJECT` | GCP project ID | `bbl-mit-hack-2025` |
-| `GOOGLE_APPLICATION_CREDENTIALS` | Path to service account JSON | `./credentials.json` |
+| --- | --- | --- |
+| `OPENAI_API_KEY` | OpenAI API key for GPT Realtime voice | `sk-...` |
+| `OPENAI_REALTIME_MODEL` | Realtime voice model | `gpt-realtime` |
+| `OPENAI_REALTIME_VOICE` | Realtime voice name | `alloy` |
+| `GOOGLE_PROJECT` | GCP project ID | `my-project` |
+| `GOOGLE_APPLICATION_CREDENTIALS` | Service account JSON path | `./credentials.json` |
 | `TWILIO_ACCOUNT_SID` | Twilio account ID | `AC...` |
 | `TWILIO_AUTH_TOKEN` | Twilio auth token | `your_token` |
-| `TWILIO_PHONE_NUMBER` | Crisis hotline phone number | `+66xxxxxxxxx` |
-| `USE_VERTEX` | Use Vertex AI instead of Gemini API | `false` |
+| `TWILIO_PHONE_NUMBER` | Crisis hotline number | `+66xxxxxxxxx` |
 
-## 🧪 Testing
+Planned Azure variables:
 
-### Load Testing
+| Variable | Description |
+| --- | --- |
+| `AZURE_OPENAI_ENDPOINT` | Azure OpenAI endpoint |
+| `AZURE_OPENAI_API_KEY` | Azure OpenAI key, replaced by Managed Identity in production |
+| `AZURE_OPENAI_DEPLOYMENT` | Model deployment for triage/realtime |
+| `AZURE_SPEECH_KEY` | Azure AI Speech key |
+| `AZURE_SPEECH_REGION` | Azure AI Speech region |
+| `AZURE_COSMOS_ENDPOINT` | Cosmos DB account endpoint |
+| `AZURE_COSMOS_KEY` | Cosmos DB key, replaced by Managed Identity in production |
+| `AZURE_SERVICE_BUS_CONNECTION_STRING` | Service Bus connection string |
+| `AZURE_MAPS_KEY` | Azure Maps key |
+| `APPLICATIONINSIGHTS_CONNECTION_STRING` | Application Insights telemetry |
+| `KEY_VAULT_URL` | Azure Key Vault URL |
 
-Run the load test script to simulate multiple concurrent calls:
+## Migration Roadmap
 
-```bash
-python scripts/load_test.py
-```
+### Phase 1: Azure Foundation
 
-### Manual Testing
+- Deploy FastAPI call gateway to Azure Container Apps.
+- Move Firestore data model to Cosmos DB.
+- Host React dashboard on Azure Static Web Apps.
+- Add Application Insights telemetry.
+- Move secrets to Key Vault.
 
-1. Call the crisis hotline number configured in Twilio
-2. Respond to AI questions
-3. Check dashboard for case appearance
-4. Verify Firestore database for saved victim data
+### Phase 2: Azure AI
 
-## 📚 Documentation
+- Add Azure AI Speech STT/TTS pipeline.
+- Add Azure OpenAI structured triage endpoint.
+- Add deterministic safety rules around AI triage.
+- Add Azure AI Search RAG for grounded survival guidance.
 
-- [CRISIS_BOT_SPEC.md](crisis-bot/CRISIS_BOT_SPEC.md) - Business requirements and use cases
-- [IMPLEMENTATION.md](crisis-bot/IMPLEMENTATION.md) - Technical implementation details
-- [CLAUDE.md](crisis-bot/CLAUDE.md) - AI assistant instructions
+### Phase 3: Crisis Operations
 
-## 🤝 Contributing
+- Add Service Bus topics/queues for crisis events.
+- Add Azure Functions for pulse checks, retries, and escalation.
+- Add Azure Maps incident board and nearest-resource search.
+- Add operator SLA alerts and human override workflow.
 
-1. Create a feature branch: `git checkout -b feature/your-feature`
-2. Commit changes: `git commit -am 'Add new feature'`
-3. Push to branch: `git push origin feature/your-feature`
-4. Open a pull request
+### Phase 4: Responsible AI And Production Readiness
 
-## 📄 License
+- Add audit log view and explainable triage trail.
+- Add Thai, English, tourist, and migrant-worker language tests.
+- Add PDPA-aware retention and access controls.
+- Add abuse protection, disaster recovery, security monitoring, and failover procedures.
 
-This project is licensed under the MIT License - see LICENSE file for details.
+## Responsible AI And Safety Controls
 
-## 👥 Team
+- Human review is required for RED cases and low-confidence or conflicting AI outputs.
+- The AI must never reject emergency help or downgrade urgent cases without human review.
+- Critical fields must be confirmed verbally when possible, especially location and callback number.
+- Store extracted facts, triage reason, confidence, model output, safety-rule output, and human overrides.
+- Route to a human operator if speech recognition fails or the caller is too distressed to continue.
+- Use grounded guidance from official SOPs through Azure AI Search rather than relying only on model memory.
+- Support accessibility alternatives such as SMS, app, LINE, and visual alerts.
+- Apply PDPA-aware data minimization, encryption, RBAC, audit logs, and retention policies.
 
-Built for emergency response during crisis situations in Thailand and Southeast Asia.
+## Implementation Checklist
 
----
+- Create Azure resource group and environment variables.
+- Deploy FastAPI call gateway to Azure Container Apps.
+- Create Cosmos DB database and case collections.
+- Add Azure OpenAI structured triage endpoint.
+- Add Azure AI Speech STT/TTS pipeline.
+- Create Service Bus topics or queues for crisis events.
+- Create Azure Functions for pulse checks and escalation.
+- Deploy React dashboard to Azure Static Web Apps.
+- Add Azure Maps case pins and nearest-resource search.
+- Add Application Insights telemetry and operational dashboards.
+- Move secrets to Key Vault and use Managed Identity.
+- Add audit log view and human override workflow.
+- Test Thai flood, medical, fire, tourist, and no-answer scenarios.
 
-**Note**: This system is designed for emergency use. Ensure proper testing, compliance with local regulations, and integration with existing emergency response infrastructure before deployment.
+## Documentation
+
+- [Azure solution guide](docs/AZURE_SOLUTION.md)
+- [Business requirements and use cases](crisis-bot/CRISIS_BOT_SPEC.md)
+- [Current implementation guide](crisis-bot/IMPLEMENTATION.md)
+
+## Notes
+
+This system is designed for emergency support. Before production use, validate integrations with official emergency response workflows, confirm local telecom constraints, perform safety testing with Thai and multilingual callers, and complete legal/privacy review for PDPA and public-sector requirements.

@@ -1,62 +1,22 @@
 import { useEffect, useState } from 'react';
-import { collection, onSnapshot, query, orderBy, addDoc, updateDoc, doc, Timestamp, serverTimestamp, arrayUnion } from 'firebase/firestore';
-import { db } from './firebase';
+import {
+  assignCaseResource,
+  createCase,
+  dashboardTimestamp,
+  listCases,
+  listResources,
+  updateCase,
+  updateResource,
+  type AssignedResource,
+  type DashboardTimestamp,
+  type Resource,
+  type Victim,
+} from './api';
 import {
   Phone, MapPin, Clock, Users, AlertCircle, CheckCircle2, XCircle,
   ChevronRight, Plus, X, Timer, Heart, Truck, MessageSquare,
   Globe, Hash, FileText, Calendar, PhoneCall, ArrowUpRight
 } from 'lucide-react';
-
-interface CallRecord {
-  direction: 'inbound' | 'outbound';
-  callType: 'initial' | 'callback' | 'pulse_check';
-  startedAt: Timestamp;
-  durationSec: number;
-  summary: string;
-  guidanceGiven: string;
-  telephonyId: string;
-}
-
-interface AssignedResource {
-  resourceId: string;
-  resourceName: string;
-  resourceType: string;
-  assignedAt: Timestamp;
-  status: 'assigned' | 'dispatched' | 'arrived' | 'completed';
-}
-
-interface Victim {
-  id: string;
-  ticketNumber: string;
-  phoneNumber: string;
-  primaryLanguage: string;
-  location: { text: string };
-  victimCount: number;
-  situationType: string;
-  condition: string;
-  priority: 'RED' | 'YELLOW' | 'GREEN';
-  priorityReason: string;
-  status: 'pending' | 'contacted' | 'resolved' | 'closed';
-  injuryDetails: string;
-  helpNeeded: string;
-  createdAt: Timestamp;
-  updatedAt: Timestamp;
-  lastContactAt: Timestamp;
-  nextPulseAt: Timestamp;
-  callbackDueAt: Timestamp;
-  notes: string;
-  aiTranscript: string;
-  callHistory: CallRecord[];
-  assignedResources: AssignedResource[];
-}
-
-interface Resource {
-  id: string;
-  name: string;
-  type: string;
-  status: string;
-  available: number;
-}
 
 const priorityConfig = {
   RED: {
@@ -89,7 +49,7 @@ const statusConfig: Record<string, { bg: string; text: string; icon: typeof Chec
   closed: { bg: 'bg-gray-100', text: 'text-gray-600', icon: XCircle },
 };
 
-function formatTime(timestamp: Timestamp | undefined): string {
+function formatTime(timestamp: DashboardTimestamp | undefined): string {
   if (!timestamp) return '-';
   const date = timestamp.toDate();
   return date.toLocaleString('en-US', {
@@ -98,7 +58,7 @@ function formatTime(timestamp: Timestamp | undefined): string {
   });
 }
 
-function formatDate(timestamp: Timestamp | undefined): string {
+function formatDate(timestamp: DashboardTimestamp | undefined): string {
   if (!timestamp) return '-';
   const date = timestamp.toDate();
   return date.toLocaleString('en-US', {
@@ -107,7 +67,7 @@ function formatDate(timestamp: Timestamp | undefined): string {
   });
 }
 
-function getTimeRemaining(dueAt: Timestamp | undefined): { text: string; urgent: boolean; overdue: boolean } {
+function getTimeRemaining(dueAt: DashboardTimestamp | undefined): { text: string; urgent: boolean; overdue: boolean } {
   if (!dueAt) return { text: '-', urgent: false, overdue: false };
   const now = new Date();
   const due = dueAt.toDate();
@@ -133,28 +93,33 @@ export default function Victims() {
   const [showAssignResource, setShowAssignResource] = useState(false);
 
   useEffect(() => {
-    const q = query(collection(db, 'victims'), orderBy('createdAt', 'desc'));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const data = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      })) as Victim[];
+    let active = true;
+    const load = async () => {
+      const data = await listCases();
+      if (!active) return;
       setVictims(data);
       setLoading(false);
-    });
-    return () => unsubscribe();
+    };
+    load();
+    const interval = window.setInterval(load, 5000);
+    return () => {
+      active = false;
+      window.clearInterval(interval);
+    };
   }, []);
 
   useEffect(() => {
-    const q = query(collection(db, 'resources'), orderBy('type'));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const data = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      })) as Resource[];
-      setResources(data);
-    });
-    return () => unsubscribe();
+    let active = true;
+    const load = async () => {
+      const data = await listResources();
+      if (active) setResources(data);
+    };
+    load();
+    const interval = window.setInterval(load, 10000);
+    return () => {
+      active = false;
+      window.clearInterval(interval);
+    };
   }, []);
 
   useEffect(() => {
@@ -191,18 +156,18 @@ export default function Victims() {
   };
 
   const updateStatus = async (victimId: string, newStatus: string) => {
-    await updateDoc(doc(db, 'victims', victimId), {
+    const updated = await updateCase(victimId, {
       status: newStatus,
-      updatedAt: serverTimestamp(),
     });
+    setVictims((items) => items.map((item) => item.id === victimId ? updated : item));
   };
 
   const saveNotes = async () => {
     if (!selected) return;
-    await updateDoc(doc(db, 'victims', selected.id), {
+    const updated = await updateCase(selected.id, {
       notes: notesValue,
-      updatedAt: serverTimestamp(),
     });
+    setVictims((items) => items.map((item) => item.id === selected.id ? updated : item));
     setEditingNotes(false);
   };
 
@@ -220,21 +185,19 @@ export default function Victims() {
       resourceId: resource.id,
       resourceName: resource.name,
       resourceType: resource.type,
-      assignedAt: Timestamp.now(),
+      assignedAt: dashboardTimestamp.now(),
       status: 'assigned',
     };
 
-    await updateDoc(doc(db, 'victims', selected.id), {
-      assignedResources: arrayUnion(assignment),
-      updatedAt: serverTimestamp(),
-    });
+    const updatedCase = await assignCaseResource(selected.id, assignment);
 
-    await updateDoc(doc(db, 'resources', resourceId), {
+    const updatedResource = await updateResource(resourceId, {
       available: Math.max(0, (resource.available || 0) - 1),
       status: 'deployed',
-      updatedAt: serverTimestamp(),
     });
 
+    setVictims((items) => items.map((item) => item.id === selected.id ? updatedCase : item));
+    setResources((items) => items.map((item) => item.id === resourceId ? updatedResource : item));
     setShowAssignResource(false);
   };
 
@@ -760,7 +723,7 @@ function AddVictimForm({ onClose }: { onClose: () => void }) {
     const now = new Date();
     const callbackMinutes = form.priority === 'RED' ? 10 : form.priority === 'YELLOW' ? 30 : 1440;
 
-    await addDoc(collection(db, 'victims'), {
+    await createCase({
       ticketNumber: generateTicketNumber(),
       phoneNumber: form.phoneNumber,
       primaryLanguage: form.primaryLanguage,
@@ -773,11 +736,9 @@ function AddVictimForm({ onClose }: { onClose: () => void }) {
       priority: form.priority,
       priorityReason: form.priorityReason,
       status: 'pending',
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-      lastContactAt: serverTimestamp(),
-      nextPulseAt: Timestamp.fromDate(new Date(now.getTime() + 60 * 60000)),
-      callbackDueAt: Timestamp.fromDate(new Date(now.getTime() + callbackMinutes * 60000)),
+      lastContactAt: now.toISOString(),
+      nextPulseAt: dashboardTimestamp.fromDate(new Date(now.getTime() + 60 * 60000)),
+      callbackDueAt: dashboardTimestamp.fromDate(new Date(now.getTime() + callbackMinutes * 60000)),
       notes: 'Manually added from dashboard',
       aiTranscript: '',
       callHistory: [],

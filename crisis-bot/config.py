@@ -3,21 +3,49 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# Toggle: "api" for Gemini API, "vertex" for Vertex AI
-USE_VERTEX = os.getenv("USE_VERTEX", "false").lower() == "true"
+CORS_ORIGINS = [
+    origin.strip()
+    for origin in os.getenv("CORS_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173").split(",")
+    if origin.strip()
+]
 
-# Gemini API config
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-GEMINI_API_MODEL = "gemini-2.5-flash-native-audio-preview-12-2025"
+# Provider toggles. Defaults are Azure-first; individual services fall back to
+# local memory/logging if credentials or cloud resources are not ready yet.
+CASE_STORE_PROVIDER = os.getenv("CASE_STORE_PROVIDER", "cosmos").lower()
+EVENT_PUBLISHER = os.getenv("EVENT_PUBLISHER", "service_bus").lower()
+AI_TRIAGE_PROVIDER = os.getenv("AI_TRIAGE_PROVIDER", "azure_openai").lower()
 
-# Vertex AI config
-GOOGLE_PROJECT = os.getenv("GOOGLE_PROJECT", "bbl-mit-hack-2025")
-GOOGLE_LOCATION = "us-central1"
-VERTEX_MODEL = "gemini-live-2.5-flash-native-audio"
-# VERTEX_MODEL = "gemini-live-2.5-flash-preview-native-audio"
+# OpenAI Realtime voice model. This replaces Gemini Live for the Twilio media
+# stream path when using GPT speech-to-speech.
+VOICE_AI_PROVIDER = os.getenv("VOICE_AI_PROVIDER", "openai").lower()
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+OPENAI_REALTIME_MODEL = os.getenv("OPENAI_REALTIME_MODEL", "gpt-4o-realtime-preview")
+OPENAI_REALTIME_VOICE = os.getenv("OPENAI_REALTIME_VOICE", "alloy")
 
-# Active model
-GEMINI_MODEL = VERTEX_MODEL if USE_VERTEX else GEMINI_API_MODEL
+# Azure OpenAI
+AZURE_OPENAI_ENDPOINT = os.getenv("AZURE_OPENAI_ENDPOINT")
+AZURE_OPENAI_API_KEY = os.getenv("AZURE_OPENAI_API_KEY")
+AZURE_OPENAI_DEPLOYMENT = os.getenv("AZURE_OPENAI_DEPLOYMENT")
+AZURE_OPENAI_API_VERSION = os.getenv("AZURE_OPENAI_API_VERSION", "2024-10-21")
+
+# Azure Cosmos DB for NoSQL
+AZURE_COSMOS_ENDPOINT = os.getenv("AZURE_COSMOS_ENDPOINT")
+AZURE_COSMOS_KEY = os.getenv("AZURE_COSMOS_KEY")
+AZURE_COSMOS_DATABASE = os.getenv("AZURE_COSMOS_DATABASE", "crisis_voiceops")
+AZURE_COSMOS_CASES_CONTAINER = os.getenv("AZURE_COSMOS_CASES_CONTAINER", "cases")
+AZURE_COSMOS_RESOURCES_CONTAINER = os.getenv("AZURE_COSMOS_RESOURCES_CONTAINER", "resources")
+AZURE_COSMOS_AUDIT_CONTAINER = os.getenv("AZURE_COSMOS_AUDIT_CONTAINER", "audit_logs")
+
+# Azure Service Bus
+AZURE_SERVICE_BUS_CONNECTION_STRING = os.getenv("AZURE_SERVICE_BUS_CONNECTION_STRING")
+AZURE_SERVICE_BUS_TOPIC = os.getenv("AZURE_SERVICE_BUS_TOPIC", "crisis-events")
+AZURE_SERVICE_BUS_QUEUE = os.getenv("AZURE_SERVICE_BUS_QUEUE")
+
+# Azure AI Speech
+AZURE_SPEECH_KEY = os.getenv("AZURE_SPEECH_KEY")
+AZURE_SPEECH_REGION = os.getenv("AZURE_SPEECH_REGION", "southeastasia")
+AZURE_SPEECH_RECOGNITION_LANGUAGE = os.getenv("AZURE_SPEECH_RECOGNITION_LANGUAGE", "th-TH")
+AZURE_SPEECH_VOICE = os.getenv("AZURE_SPEECH_VOICE", "th-TH-PremwadeeNeural")
 
 SYSTEM_PROMPT = """
 You are an AI assistant for emergency calls in Thailand. Your role is to:

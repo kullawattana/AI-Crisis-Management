@@ -1,32 +1,18 @@
 import { useEffect, useState } from 'react';
-import { collection, onSnapshot, query, orderBy, addDoc, updateDoc, doc, arrayUnion, Timestamp, serverTimestamp } from 'firebase/firestore';
-import { db } from './firebase';
+import {
+  allocateResource,
+  createResource,
+  dashboardTimestamp,
+  listResources,
+  updateResource,
+  type Allocation,
+  type DashboardTimestamp,
+  type Resource,
+} from './api';
 import {
   Truck, Users, Home, Flame, Anchor, Stethoscope, MapPin, Phone, User,
   Plus, X, ChevronRight, CheckCircle2, Clock, Wifi, WifiOff, Hash
 } from 'lucide-react';
-
-interface Allocation {
-  victimId: string;
-  status: 'allocated' | 'dispatched' | 'arrived' | 'completed';
-  allocatedAt: Timestamp;
-  notes: string;
-}
-
-interface Resource {
-  id: string;
-  type: string;
-  name: string;
-  totalCapacity: number;
-  available: number;
-  status: 'available' | 'deployed' | 'offline';
-  contactPhone: string;
-  contactName: string;
-  baseLocation: { text: string };
-  allocations: Allocation[];
-  createdAt: Timestamp;
-  updatedAt: Timestamp;
-}
 
 const statusConfig = {
   available: { bg: 'bg-emerald-50', border: 'border-emerald-200', text: 'text-emerald-600', badge: 'bg-emerald-500', icon: Wifi },
@@ -43,7 +29,7 @@ const typeConfig: Record<string, { label: string; icon: typeof Truck }> = {
   boat: { label: 'Boat', icon: Anchor },
 };
 
-function formatTime(timestamp: Timestamp | undefined): string {
+function formatTime(timestamp: DashboardTimestamp | undefined): string {
   if (!timestamp) return '-';
   const date = timestamp.toDate();
   return date.toLocaleString('en-US', {
@@ -60,16 +46,19 @@ export default function Resources() {
   const [showAllocateForm, setShowAllocateForm] = useState(false);
 
   useEffect(() => {
-    const q = query(collection(db, 'resources'), orderBy('type'));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const data = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      })) as Resource[];
+    let active = true;
+    const load = async () => {
+      const data = await listResources();
+      if (!active) return;
       setResources(data);
       setLoading(false);
-    });
-    return () => unsubscribe();
+    };
+    load();
+    const interval = window.setInterval(load, 10000);
+    return () => {
+      active = false;
+      window.clearInterval(interval);
+    };
   }, []);
 
   useEffect(() => {
@@ -83,10 +72,10 @@ export default function Resources() {
   const availableCount = resources.filter(r => r.status === 'available').length;
 
   const updateStatus = async (resourceId: string, newStatus: string) => {
-    await updateDoc(doc(db, 'resources', resourceId), {
+    const updated = await updateResource(resourceId, {
       status: newStatus,
-      updatedAt: serverTimestamp(),
     });
+    setResources((items) => items.map((item) => item.id === resourceId ? updated : item));
   };
 
   if (loading) {
@@ -382,7 +371,7 @@ function AddResourceForm({ onClose }: { onClose: () => void }) {
     e.preventDefault();
     setSaving(true);
 
-    await addDoc(collection(db, 'resources'), {
+    await createResource({
       name: form.name,
       type: form.type,
       totalCapacity: form.totalCapacity,
@@ -392,8 +381,6 @@ function AddResourceForm({ onClose }: { onClose: () => void }) {
       contactName: form.contactName,
       contactPhone: form.contactPhone,
       allocations: [],
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
     });
 
     setSaving(false);
@@ -533,16 +520,11 @@ function AllocateForm({ resource, onClose }: { resource: Resource; onClose: () =
     const allocation: Allocation = {
       victimId: victimId.trim(),
       status: 'allocated',
-      allocatedAt: Timestamp.now(),
+      allocatedAt: dashboardTimestamp.now(),
       notes: notes,
     };
 
-    await updateDoc(doc(db, 'resources', resource.id), {
-      allocations: arrayUnion(allocation),
-      available: Math.max(0, (resource.available || 0) - 1),
-      status: 'deployed',
-      updatedAt: serverTimestamp(),
-    });
+    await allocateResource(resource.id, allocation);
 
     setSaving(false);
     onClose();

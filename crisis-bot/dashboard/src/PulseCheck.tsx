@@ -1,24 +1,15 @@
 import { useEffect, useState } from 'react';
-import { collection, onSnapshot, query, orderBy, updateDoc, doc, Timestamp, serverTimestamp } from 'firebase/firestore';
-import { db } from './firebase';
+import {
+  dashboardTimestamp,
+  listCases,
+  updateCase,
+  type DashboardTimestamp,
+  type Victim,
+} from './api';
 import {
   Activity, Phone, MapPin, Clock, AlertCircle, CheckCircle2,
   Timer, ChevronRight, Heart, Hash
 } from 'lucide-react';
-
-interface Victim {
-  id: string;
-  ticketNumber: string;
-  phoneNumber: string;
-  priority: 'RED' | 'YELLOW' | 'GREEN';
-  status: string;
-  situationType: string;
-  location: { text: string };
-  condition: string;
-  injuryDetails: string;
-  nextPulseAt: Timestamp;
-  lastContactAt: Timestamp;
-}
 
 const priorityConfig = {
   RED: {
@@ -41,7 +32,7 @@ const priorityConfig = {
   },
 };
 
-function formatTime(timestamp: Timestamp | undefined): string {
+function formatTime(timestamp: DashboardTimestamp | undefined): string {
   if (!timestamp) return '-';
   const date = timestamp.toDate();
   return date.toLocaleString('en-US', {
@@ -50,7 +41,7 @@ function formatTime(timestamp: Timestamp | undefined): string {
   });
 }
 
-function getMinutesUntil(timestamp: Timestamp | undefined): number {
+function getMinutesUntil(timestamp: DashboardTimestamp | undefined): number {
   if (!timestamp) return Infinity;
   const now = new Date();
   const target = timestamp.toDate();
@@ -73,16 +64,19 @@ export default function PulseCheck() {
   const [notes, setNotes] = useState('');
 
   useEffect(() => {
-    const q = query(collection(db, 'victims'), orderBy('nextPulseAt', 'asc'));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const data = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      })) as Victim[];
+    let active = true;
+    const load = async () => {
+      const data = await listCases();
+      if (!active) return;
       setVictims(data);
       setLoading(false);
-    });
-    return () => unsubscribe();
+    };
+    load();
+    const interval = window.setInterval(load, 5000);
+    return () => {
+      active = false;
+      window.clearInterval(interval);
+    };
   }, []);
 
   useEffect(() => {
@@ -119,16 +113,16 @@ export default function PulseCheck() {
     const nextPulse = new Date(now.getTime() + 60 * 60000);
 
     const updates: Record<string, unknown> = {
-      lastContactAt: serverTimestamp(),
-      nextPulseAt: Timestamp.fromDate(nextPulse),
-      updatedAt: serverTimestamp(),
+      lastContactAt: new Date().toISOString(),
+      nextPulseAt: dashboardTimestamp.fromDate(nextPulse),
     };
 
     if (newPriority) {
       updates.priority = newPriority;
     }
 
-    await updateDoc(doc(db, 'victims', selected.id), updates);
+    const updated = await updateCase(selected.id, updates);
+    setVictims((items) => items.map((item) => item.id === selected.id ? updated : item));
     setUpdating(false);
     setSelected(null);
     setNotes('');
@@ -137,10 +131,10 @@ export default function PulseCheck() {
   const markResolved = async () => {
     if (!selected) return;
     setUpdating(true);
-    await updateDoc(doc(db, 'victims', selected.id), {
+    const updated = await updateCase(selected.id, {
       status: 'resolved',
-      updatedAt: serverTimestamp(),
     });
+    setVictims((items) => items.map((item) => item.id === selected.id ? updated : item));
     setUpdating(false);
     setSelected(null);
   };

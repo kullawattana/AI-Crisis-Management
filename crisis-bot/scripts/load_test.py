@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Load test script - simulates Twilio WebSocket connections to test Gemini performance.
-Bypasses actual phone calls to isolate Gemini as potential bottleneck.
+Load test script - simulates Twilio WebSocket connections to test AI voice performance.
+Bypasses actual phone calls to isolate the realtime call gateway as a potential bottleneck.
 """
 
 import asyncio
@@ -11,6 +11,7 @@ import base64
 import time
 import argparse
 import audioop
+import os
 from dataclasses import dataclass
 
 # Generate silence in mulaw format (Twilio sends mulaw 8kHz)
@@ -167,7 +168,7 @@ async def run_load_test(url: str, num_calls: int, duration: int, stagger_ms: int
     if successful:
         latencies = [r.first_response_at - r.stream_started_at for r in successful if r.first_response_at > 0]
         if latencies:
-            print(f"\nFirst Response Latency (time to first Gemini audio):")
+            print(f"\nFirst Response Latency (time to first AI audio):")
             print(f"  Min: {min(latencies):.2f}s")
             print(f"  Max: {max(latencies):.2f}s")
             print(f"  Avg: {sum(latencies)/len(latencies):.2f}s")
@@ -190,8 +191,11 @@ async def run_load_test(url: str, num_calls: int, duration: int, stagger_ms: int
 
 def main():
     parser = argparse.ArgumentParser(description='Load test crisis-bot WebSocket')
-    parser.add_argument('--url', default='wss://crisis-bot-429970492504.asia-southeast1.run.app/media-stream',
-                        help='WebSocket URL')
+    parser.add_argument(
+        '--url',
+        default=os.getenv('LOAD_TEST_WS_URL', 'ws://localhost:9999/media-stream'),
+        help='WebSocket URL. Defaults to LOAD_TEST_WS_URL or local FastAPI server.'
+    )
     parser.add_argument('--calls', type=int, default=1, help='Number of concurrent calls')
     parser.add_argument('--duration', type=int, default=10, help='Duration per call in seconds')
     parser.add_argument('--stagger', type=int, default=0, help='Stagger start time in ms between calls')

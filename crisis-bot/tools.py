@@ -1,6 +1,6 @@
 from typing import Literal
 import inspect
-from services.firestore_service import create_victim
+from services.case_store import create_victim
 
 # Hardcoded survival guides (Thai)
 SURVIVAL_GUIDES = {
@@ -155,16 +155,18 @@ def get_function_description(docstring: str) -> str:
 
 
 def get_tool_declarations():
-    """Convert Python functions to Gemini FunctionDeclarations."""
+    """Compatibility wrapper for older imports."""
+    return get_openai_tool_declarations()
+
+
+def get_openai_tool_declarations() -> list[dict]:
+    """Convert Python functions to OpenAI Realtime function tool schemas."""
     from typing import get_origin, get_args
-    from google.genai.types import FunctionDeclaration
 
     declarations = []
     for func_name, func in TOOL_MAP.items():
         sig = inspect.signature(func)
         docstring = func.__doc__ or ""
-
-        # Parse docstring for descriptions
         func_desc = get_function_description(docstring)
         param_descs = parse_docstring_args(docstring)
 
@@ -178,27 +180,30 @@ def get_tool_declarations():
                 parameters["properties"][param_name] = {
                     "type": "string",
                     "enum": list(get_args(annotation)),
-                    "description": param_desc
+                    "description": param_desc,
                 }
             elif annotation == int:
                 parameters["properties"][param_name] = {
                     "type": "integer",
-                    "description": param_desc
+                    "description": param_desc,
                 }
             else:
                 parameters["properties"][param_name] = {
                     "type": "string",
-                    "description": param_desc
+                    "description": param_desc,
                 }
 
             if param.default == inspect.Parameter.empty:
                 parameters["required"].append(param_name)
 
-        declarations.append(FunctionDeclaration(
-            name=func_name,
-            description=func_desc or f"Execute {func_name}",
-            parameters=parameters
-        ))
+        declarations.append(
+            {
+                "type": "function",
+                "name": func_name,
+                "description": func_desc or f"Execute {func_name}",
+                "parameters": parameters,
+            }
+        )
 
     return declarations
 

@@ -70,3 +70,13 @@ def add_call_to_history(victim_id: str, call_data: dict):
         'lastContactAt': now,
         'updatedAt': now,
     })
+
+
+class FirestoreCaseStore:
+    """Firestore implementation kept as a fallback during Azure migration."""
+
+    def create_victim(self, data: dict) -> tuple[str, str]:
+        return create_victim(data)
+
+    def add_call_to_history(self, victim_id: str, call_data: dict):
+        add_call_to_history(victim_id, call_data)
