@@ -112,7 +112,7 @@ add_secret_env() {
   fi
 }
 
-add_secret_env "OPENAI_API_KEY" "openai-api-key"
+add_secret_env "OPENAI_API_KEY" "openai-api-key-v2"
 add_secret_env "TWILIO_ACCOUNT_SID" "twilio-account-sid"
 add_secret_env "TWILIO_AUTH_TOKEN" "twilio-auth-token"
 add_secret_env "TWILIO_PHONE_NUMBER" "twilio-phone-number"

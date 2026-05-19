@@ -81,10 +81,23 @@ async def receive_from_openai(ai_session, twilio_ws: WebSocket, state: dict):
                 if transcript:
                     print(f"[{call_id}] User: {transcript}", flush=True)
 
+            elif event_type == "input_audio_buffer.speech_started":
+                print(f"[{call_id}] OpenAI: User speech started", flush=True)
+
+            elif event_type == "input_audio_buffer.speech_stopped":
+                print(f"[{call_id}] OpenAI: User speech stopped", flush=True)
+
+            elif event_type == "input_audio_buffer.committed":
+                print(f"[{call_id}] OpenAI: User audio committed", flush=True)
+
             elif event_type in {"response.audio_transcript.done", "response.output_audio_transcript.done"}:
                 transcript = event.get("transcript")
                 if transcript:
                     print(f"[{call_id}] AI: {transcript}", flush=True)
+
+            elif event_type == "response.done":
+                status = event.get("response", {}).get("status")
+                print(f"[{call_id}] OpenAI: Response done ({status})", flush=True)
 
             elif event_type == "response.function_call_arguments.done":
                 await _handle_tool_call_event(ai_session, event, processed_tool_calls, call_id)

@@ -19,7 +19,7 @@ AI_TRIAGE_PROVIDER = os.getenv("AI_TRIAGE_PROVIDER", "azure_openai").lower()
 # stream path when using GPT speech-to-speech.
 VOICE_AI_PROVIDER = os.getenv("VOICE_AI_PROVIDER", "openai").lower()
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-OPENAI_REALTIME_MODEL = os.getenv("OPENAI_REALTIME_MODEL", "gpt-4o-realtime-preview")
+OPENAI_REALTIME_MODEL = os.getenv("OPENAI_REALTIME_MODEL", "gpt-realtime")
 OPENAI_REALTIME_VOICE = os.getenv("OPENAI_REALTIME_VOICE", "alloy")
 
 # Azure OpenAI
