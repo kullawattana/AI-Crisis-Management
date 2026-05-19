@@ -281,7 +281,7 @@ Core runtime variables:
 | Variable | Description | Example |
 | --- | --- | --- |
 | `OPENAI_API_KEY` | OpenAI API key with Realtime model access | `sk-...` |
-| `OPENAI_REALTIME_MODEL` | Realtime voice model | `gpt-4o-realtime-preview` |
+| `OPENAI_REALTIME_MODEL` | Realtime voice model | `gpt-realtime` |
 | `OPENAI_REALTIME_VOICE` | Realtime voice name | `alloy` |
 | `TWILIO_ACCOUNT_SID` | Twilio account ID | `AC...` |
 | `TWILIO_AUTH_TOKEN` | Twilio auth token | `your_token` |
