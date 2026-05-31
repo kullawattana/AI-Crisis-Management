@@ -82,7 +82,7 @@ ACR_PASSWORD="$(az acr credential show --name "${AZURE_ACR_NAME}" --query passwo
 
 SECRET_ARGS=()
 ENV_ARGS=(
-  "CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:5173}"
+  "CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:5173,http://127.0.0.1:5173,https://crisisdashafdeb124.z23.web.core.windows.net}"
   "CASE_STORE_PROVIDER=${CASE_STORE_PROVIDER:-cosmos}"
   "EVENT_PUBLISHER=${EVENT_PUBLISHER:-service_bus}"
   "AI_TRIAGE_PROVIDER=${AI_TRIAGE_PROVIDER:-azure_openai}"
